@@ -1,15 +1,13 @@
 import javax.swing.*;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultHighlighter;
+import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.io.*;
 import java.util.Scanner;
-import static java.nio.file.StandardOpenOption.CREATE;
 
 public class StringFilterGUI extends JFrame {
     JPanel mainPanel;
@@ -24,14 +22,24 @@ public class StringFilterGUI extends JFrame {
 
 
     // Main interface assets, which contains field to select file, as well as textArea to show extracted tags
+    JPanel centerPanel;
     JPanel interfacePanel;
     JLabel fileLabel;
     JTextField fileTextField;
     JButton selectFileButton;
     JButton scanButton;
     JFileChooser fileChooser;
+
+
+    // Display Panel
+    JPanel displayPanel;
+    JLabel originalFileLabel;
     JTextArea originalFileTextArea;
-    JScrollPane scrollPane;
+    JScrollPane originalFileScrollPane;
+    JLabel filterStringLabel;
+    JTextField filterStringField;
+    JTextArea filterTextArea;
+    JScrollPane filterScrollPane;
     Font interfaceLabelFont = new Font("Arial", Font.PLAIN, 12);
     Color interfaceLabelColor = new Color(44, 43, 41);
     Color interfaceBackgroundColor = new Color(255, 252, 246, 255);
@@ -45,7 +53,6 @@ public class StringFilterGUI extends JFrame {
 
 
     // Program logic variables
-
     File selectedFile;
     Path file;
     File workingDirectory = new File(System.getProperty("user.dir"));
@@ -58,8 +65,8 @@ public class StringFilterGUI extends JFrame {
         createHeaderPanel();
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
-        createInterfacePanel();
-        mainPanel.add(interfacePanel, BorderLayout.CENTER);
+        createCenterPanel();
+        mainPanel.add(centerPanel, BorderLayout.CENTER);
 
         createButtonPanel();
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
@@ -87,6 +94,19 @@ public class StringFilterGUI extends JFrame {
         headerPanel.add(header, gbc);
     }
 
+    private void createCenterPanel()
+    {
+        centerPanel = new JPanel();
+        centerPanel.setBackground(interfaceBackgroundColor);
+        centerPanel.setLayout(new BorderLayout());
+
+        createInterfacePanel();
+        centerPanel.add(interfacePanel, BorderLayout.PAGE_START);
+
+        createDisplayPanel();
+        centerPanel.add(displayPanel, BorderLayout.PAGE_END);
+    }
+
     private void createInterfacePanel() {
         interfacePanel = new JPanel();
         interfacePanel.setBackground(interfaceBackgroundColor);
@@ -105,22 +125,9 @@ public class StringFilterGUI extends JFrame {
         selectFileButton.setBackground(interfaceButtonColor);
         selectFileButton.addActionListener((ActionEvent ae) -> getSelectedFile());
 
-        scanButton = new JButton("Scan File");
-        scanButton.setFont(interfaceLabelFont);
-        scanButton.setForeground(interfaceLabelColor);
-        scanButton.setBackground(interfaceButtonColor);
-        scanButton.addActionListener((ActionEvent ae) -> {});
-
-        originalFileTextArea = new JTextArea();
-        originalFileTextArea.setRows(20);
-        originalFileTextArea.setColumns(50);
-
-        scrollPane = new JScrollPane(originalFileTextArea);
-
-
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(5, 5, 20, 5);
+        gbc.insets = new Insets(5, 5, 5, 5);
 
         gbc.gridx = 0;
         gbc.gridy = 0;
@@ -129,11 +136,57 @@ public class StringFilterGUI extends JFrame {
         interfacePanel.add(fileTextField, gbc);
         gbc.gridx = 2;
         interfacePanel.add(selectFileButton, gbc);
-        gbc.gridx = 3;
+    }
+
+    private void createDisplayPanel()
+    {
+        displayPanel = new JPanel();
+        displayPanel.setBackground(interfaceBackgroundColor);
+        displayPanel.setLayout(new GridBagLayout());
+
+        originalFileTextArea = new JTextArea();
+        originalFileTextArea.setRows(10);
+        originalFileTextArea.setColumns(30);
+        originalFileTextArea.setLineWrap(true);
+        originalFileTextArea.setWrapStyleWord(true);
+        originalFileScrollPane = new JScrollPane(originalFileTextArea);
+
+        filterStringLabel = new JLabel("Filter String:");
+        filterStringLabel.setFont(interfaceLabelFont);
+        filterStringLabel.setForeground(interfaceLabelColor);
+
+        filterStringField = new JTextField();
+        filterStringField.setColumns(50);
+
+        scanButton = new JButton("Scan File");
+        scanButton.setFont(interfaceLabelFont);
+        scanButton.setForeground(interfaceLabelColor);
+        scanButton.setBackground(interfaceButtonColor);
+        scanButton.addActionListener((ActionEvent ae) -> scanFile());
+
+        filterTextArea = new JTextArea();
+        filterTextArea.setRows(10);
+        filterTextArea.setColumns(30);
+        filterTextArea.setLineWrap(true);
+        filterTextArea.setWrapStyleWord(true);
+        filterScrollPane = new JScrollPane(filterTextArea);
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(75, 5, 5, 5);
+
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        interfacePanel.add(filterStringLabel, gbc);
+        gbc.gridx = 1;
+        interfacePanel.add(filterStringField, gbc);
+        gbc.gridx = 2;
         interfacePanel.add(scanButton, gbc);
         gbc.gridx = 1;
-        gbc.gridy = 2;
-        interfacePanel.add(scrollPane, gbc);
+        gbc.gridy = 1;
+        interfacePanel.add(originalFileScrollPane, gbc);
+        gbc.gridx = 2;
+        interfacePanel.add(filterScrollPane, gbc);
     }
 
     private void createButtonPanel() {
@@ -141,20 +194,23 @@ public class StringFilterGUI extends JFrame {
         buttonPanel.setBackground(interfaceBackgroundColor);
         buttonPanel.setLayout(new GridBagLayout());
 
-        exportTagsButton = new JButton("Export Tags");
-        exportTagsButton.setFont(interfaceLabelFont);
-        exportTagsButton.setForeground(interfaceLabelColor);
-        exportTagsButton.setBackground(interfaceButtonColor);
-        exportTagsButton.addActionListener((ActionEvent ae) -> {});
-
         clearButton = new JButton("Clear");
         clearButton.setFont(interfaceLabelFont);
         clearButton.setForeground(interfaceLabelColor);
         clearButton.setBackground(interfaceButtonColor);
         clearButton.addActionListener((ActionEvent ae) ->
         {
+            fileTextField.selectAll();
+            fileTextField.setText("");
+
             originalFileTextArea.selectAll();
             originalFileTextArea.setText("");
+
+            filterStringField.selectAll();
+            filterStringField.setText("");
+
+            filterTextArea.selectAll();
+            filterTextArea.setText("");
         });
 
         quitButton = new JButton("Quit");
@@ -184,6 +240,44 @@ public class StringFilterGUI extends JFrame {
             selectedFile = fileChooser.getSelectedFile();
             file = selectedFile.toPath();
             fileTextField.setText(String.valueOf(file));
+        }
+    }
+
+    private void scanFile()
+    {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file.toFile()))))
+        {
+            if (fileTextField.getText().isEmpty())
+            {
+                JOptionPane.showMessageDialog(null, "Please input a file.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+            else
+            {
+                originalFileTextArea.selectAll();
+                originalFileTextArea.setText("");
+
+                filterTextArea.selectAll();
+                filterTextArea.setText("");
+
+                String filterString = filterStringField.getText().trim().toLowerCase();
+                String line;
+
+                while ((line = reader.readLine()) != null)
+                {
+                    originalFileTextArea.append(line + "\n");
+
+                    if (line.toLowerCase().contains(filterString)) {
+                        filterTextArea.append(line + "\n");
+                    }
+                }
+            }
+        }
+        catch (EOFException ignored)
+        {
+        }
+        catch (IOException e)
+        {
+            JOptionPane.showMessageDialog(null, "Error Reading File.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
